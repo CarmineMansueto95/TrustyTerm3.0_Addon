@@ -1,0 +1,131 @@
+<!DOCTYPE html PUBLIC  "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+	<title>TrustyTerm</title>
+	<meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
+	<!--<link href="/MyScripts/favicon.ico" rel="icon"/>
+	<link href="/MyScripts/favicon.ico" rel="shortcut icon"/>-->
+	<style type="text/css">
+		.termstyle{
+			font-family: monospace;
+			font-size: 12px;
+			font-weight: bold;
+			color: #A4A4A4;
+			background: #1C1C1C;
+		}
+		.termstyle_input{
+			font-family: monospace;
+			font-size: 12px;
+			font-weight: bold;
+			color: #A4A4A4;
+			background-color: #1C1C1C;
+			border-style: solid;
+			border-color: #A4A4A4;
+			border-width: 1px;
+			text-align:center;
+			width: 130px;
+		}
+		.termstyle_button{
+			font-family: monospace;
+			font-size: 12px;
+			font-weight: bold;
+			color: #A4A4A4;
+			background-color: #1C1C1C;
+
+  			font-weight: bold;
+  			cursor:pointer;
+		}
+	</style>
+
+</head>
+
+<body style="background: #1C1C1C">
+
+ <div align="center">
+	<table class="termstyle" frame="hsides" >
+		 <td><h1>TrustyTerm [trusted web-based ssh client]</h1></td>
+         <td width="300" style="text-align:center;"> <textarea id="dbg_txtarea" rows="10" cols="50" class="termstyle" style="font-size: 12px; font-weight: bold;"> </textarea></td>
+	</table>
+	<br>
+	<table class="termstyle">
+		<tr>
+		 <td>
+		 	RSA key pair generation: <select id="keylenght"  style="background-color:#1C1C1C;color:#A4A4A4;"><option value="1024"> 1024 bit </option><option value="2048"> 2048 bit </option></select>
+            <input id="genkeypair" type="button" class="termstyle_button"  value="get a new key pair"/><br><br>
+            or copy&paste your private key file content (PEM format) and import it <br>
+         </td>
+        </tr>
+        <tr>
+        <td>
+         <div id="progressbar1" style="width:100%;height:15px;border:2px solid #666666;overflow:hidden;visibility:hidden;">
+  				<div id="progressbar2" style="width:0%;height:15px;border-right: 2px solid #666666;background: #666666;">
+  				</div>
+  				<div id="pb_label" style="color: #A4A4A4;font-size: 13px;font-style: monospace;font-weight: bold;left: 25px;position: relative;top: -16px; ">
+  				shake your mouse...
+  				</div>
+		 	</div>
+        </td>
+     </tr>
+
+    </table>
+
+	<br>
+
+	<table class="termstyle">
+	    <tr style="text-align:center;" ><td> YOUR PRIVATE KEY FILE <input id="importButton" type="button" class="termstyle_button" value="import" /></td><td> YOUR PUBLIC KEY FILE</td></tr>
+		  <tr>
+<td><textarea id="sk_file" class="termstyle" rows="15" cols="64" style="cursor:pointer;" title=" Your RSA private key file..."></textarea></td>
+	 	   	<td><textarea id="pk_file" class="termstyle" rows="15" cols="64" style="cursor:pointer;" title=" Your RSA public key file..."; readonly=true;></textarea></td>
+	 	  </tr>
+    </table>
+
+    <br>
+
+    <table class="termstyle">
+    	<tr style="text-align:center;" ><td> SERVER PUBLIC KEY FILE (PKCS#8) <input id="importButtonPub" type="button" class="termstyle_button" value="import" /></td></tr>
+		<tr><td><textarea id="pubkey_textarea" class="termstyle" rows="15" cols="64" style="cursor:pointer;" title=" Server RSA Public Key (PKCS#8)..."></textarea></td></tr>
+    </table>
+
+    <br>
+
+    <div class="termstyle" align="center">
+		ssh <input type="text" class="termstyle_input" id="usr" value="ttserver"/>
+		@ <input type="text" class="termstyle_input" id="hn" value="192.168.56.101"/>
+		port <input type="text" class="termstyle_input" style="width: 50px;" value ="22" id="p" />
+	</div>
+
+	<br>
+
+	<div class="termstyle" align="center">
+  		Choose trusted Proxy: 
+  		<select name="IPs" id="IPs" style="background-color:#1C1C1C;color:#A4A4A4;">
+			<option value='0'>select</option>
+		</select>
+		<br><br>
+  		Proxy Address: <input type="text" class="termstyle_input" id="proxy_ip" name="proxy_ip">
+  		<br><br>
+		<input type="button" class="termstyle_button" id="trust_btn" value="Save Proxy Address">
+		<input type="button" class="termstyle_button" id="untrust_btn" value="Forget Proxy Address">
+	</div>
+
+	<br>
+
+	<table class="termstyle">
+		<tr style="text-align:center;">
+			<td><input id="check_auth" type="checkbox"/>show authentication phase</td>
+		</tr>
+		<tr style="text-align:center;">
+			<td>
+				<input id="btnconnect" type="button" class="termstyle_button" value="connect with key authentication" />
+			</td>
+		</tr>
+	</table>
+
+ </div>
+
+ <div id="xterm" class="xterm"> </div>
+
+</body>
+</html>
