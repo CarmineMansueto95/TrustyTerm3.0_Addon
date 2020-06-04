@@ -162,7 +162,7 @@ function keygeneration(){
 
 /*
 * RSA KEY PAIR EXTRACTION
-* extracts an RSA key pair from a PEM Private Key
+* extracts an RSA key pair from a PEM (PKCS1) Private Key
 */
 function importsk(){
   //extract and set private and public keys
@@ -176,7 +176,7 @@ function importsk(){
   msg("key extracting...ok");
   //check key validity
   checkkeyvalidity();
-  $('usr').focus();//fix spacebar firefox problem
+  $('usr').focus(); //fix spacebar firefox problem
 }
 
 
@@ -317,27 +317,31 @@ function handleServerResult_Connect(res) { //res.responseText contains the Diges
     )
     .then( function (serv_pubkey) { // serv_pubkey is the CryptoKey to be used for RSA-OAEP encryption
         // Genereting AES Key for encrypting Digital Signature
-        aesKey_bytes = window.crypto.getRandomValues(new Uint8Array(32)); // Uint8Array of 256 bit AES Key
-        window.crypto.subtle.importKey(
-            "raw", aesKey_bytes, "AES-CBC", true, ["encrypt"]
-        )
-        .then( function (aesCryptoKey) {  // aesCryptoKeys is the CryptoKey to be used for AES-CBC encryption
+        crypto.subtle.generateKey({name:"AES-CBC",length:256},true,["encrypt"])
+        .then( function (aesCryptoKey) {
             // Encrypting Digital Signature with AES Key
             iv = window.crypto.getRandomValues(new Uint8Array(16)); // Uint8Array of 128 bit IV
             window.crypto.subtle.encrypt( {name:"AES-CBC", iv}, aesCryptoKey, hexToBuf(hSig) )
             .then( function (encSig) {
                 // Encrypting AES Key with RSA-OAEP
-                window.crypto.subtle.encrypt({name: "RSA-OAEP"}, serv_pubkey, aesKey_bytes)
-                .then( function (encKey){
-                    iv_hex = bufToHex(iv); // Hex of IV
-                    encSig_hex = bufToHex(new Uint8Array(encSig)); // Hex of Digital Signature encrypted with AES
-                    encKey_hex = bufToHex(new Uint8Array(encKey)); // Hex of Encrypted AES Key
-                    msg("Encryption of Digital Signature computed");
-                    msg("Sending Encr Sig to Proxy...");
-                    send_encr_digest_sig(iv_hex, encSig_hex, encKey_hex);
+                window.crypto.subtle.exportKey('raw',aesCryptoKey)
+                .then( function(key_bytes){
+                  aesKey_bytes = new Uint8Array(key_bytes);
+                  window.crypto.subtle.encrypt({name: "RSA-OAEP"}, serv_pubkey, aesKey_bytes)
+                  .then( function (encKey){
+                      iv_hex = bufToHex(iv); // Hex of IV
+                      encSig_hex = bufToHex(new Uint8Array(encSig)); // Hex of Digital Signature encrypted with AES
+                      encKey_hex = bufToHex(new Uint8Array(encKey)); // Hex of Encrypted AES Key
+                      msg("Encryption of Digital Signature computed");
+                      msg("Sending Encr Sig to Proxy...");
+                      send_encr_digest_sig(iv_hex, encSig_hex, encKey_hex);
+                  })
+                  .catch(function(err){
+                      alert("Failed encryption of AES Key with RSA-OAEP: " + err);
+                  });
                 })
                 .catch(function(err){
-                    alert("Failed encryption of AES Key with RSA-OAEP: " + err);
+                  alert("Failed to export AES Key: " + err);
                 });
             })
             .catch(function(err){
@@ -345,7 +349,7 @@ function handleServerResult_Connect(res) { //res.responseText contains the Diges
             });
         })
         .catch(function(err){
-            alert("Failed import of AES Key: " + err);
+            alert("Failed generation of AES Key: " + err);
         });
     })
     .catch(function(err){
