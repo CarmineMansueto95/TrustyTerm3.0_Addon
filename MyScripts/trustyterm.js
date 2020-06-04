@@ -72,13 +72,14 @@ trustyterm.Terminal_ctor=function(id) {
             var tosend = bufToHex(IV_bytes) + cipher_hex;    // IV|CIPHER|TAG as hex string
 
             //POST (so, send keystroke)
-            var qry = queryString({TT_SID:tt_sid, SSH_SID: ssh_sid, k:tosend});
+            /*var qry = queryString({TT_SID:tt_sid, SSH_SID: ssh_sid, k:tosend});
             d = doXHR(proxypath+'u',
                      { method: 'POST',
                        sendContent:qry,
-                       headers: {Accept: 'text/xml'}
-                     });
-            
+                       headers: {Accept: 'text/json'}
+                     });*/
+
+            d = doSimpleXMLHttpRequest(proxypath+'u', {TT_SID:tt_sid, SSH_SID: ssh_sid, k:tosend});
             d.addCallback(handleServerResult_Update);
             d.addErrback(handleServerError_Update);
             error_timeout=window.setTimeout(error,5000);
@@ -91,8 +92,7 @@ trustyterm.Terminal_ctor=function(id) {
 
       else{
         //GET (so, update terminal)
-        d = doSimpleXMLHttpRequest(proxypath+'u', {TT_SID:tt_sid, SSH_SID: ssh_sid, k:send,});
-        
+        d = doSimpleXMLHttpRequest(proxypath+'u', {TT_SID:tt_sid, SSH_SID: ssh_sid, k:send});
         d.addCallback(handleServerResult_Update);
         d.addErrback(handleServerError_Update);
         error_timeout=window.setTimeout(error,5000);
@@ -106,20 +106,23 @@ trustyterm.Terminal_ctor=function(id) {
 
   function handleServerResult_Update(res) { //res.responseText contains our result.
 
-    if (res.responseText == "Keystrokes authentication failed"){
+    var resp_json = JSON.parse(res.responseText);
+    var msg = resp_json.msg;
+
+    if (msg == "Keystrokes authentication failed"){
       alert("Connection closed: Keystrokes authentication failed, proxy server could be compromised.");
       error();
       return;
     }
     
 
-    if (res.responseText == "SSH Session deleted"){
+    if (msg == "SSH Session deleted"){
       alert("SSH Session deleted from Proxy and Server!");
       error();
       return;
     }
 
-    if (res.responseText == "Invalid TT_SID"){
+    if (msg == "Invalid TT_SID"){
       alert("Invalid TT_SID!");
       error();
       return;
@@ -127,13 +130,13 @@ trustyterm.Terminal_ctor=function(id) {
 
     window.clearTimeout(error_timeout);
 
-    if(res.responseText == '<?xml version="1.0"?><idem></idem>'){
+    if(msg == 'IDEM'){
       rmax*=2;
       if(rmax>1000) rmax=1000;
     }
     else{
-      var iv_hex = res.responseText.substr(0, 24);
-      var cipher_hex = res.responseText.substr(24); //Includes tag, which are last 32 hex chars
+      var iv_hex = msg.substr(0, 24);
+      var cipher_hex = msg.substr(24); //Includes tag, which are last 32 hex chars
 
       var iv_buf = hexToBuf(iv_hex);
       var cipher_buf = hexToBuf(cipher_hex);
