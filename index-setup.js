@@ -100,14 +100,19 @@ genkeypair.addEventListener('click', function() {
 });
 
 
-var importButton = document.getElementById('importButton');
-importButton.addEventListener('click', function() {
-	importsk();
+var importPrK1Button = document.getElementById('importPrK1Button');
+importPrK1Button.addEventListener('click', function() {
+	importPrK1();
 });
 
-var importButtonPub = document.getElementById('importButtonPub');
-importButtonPub.addEventListener('click', function() {
-	getServerPubKeyPkcs8();
+var importPrK8Button = document.getElementById('importPrK8Button');
+importPrK8Button.addEventListener('click', function() {
+	importPrK8();
+});
+
+var importSrvPuKButton = document.getElementById('importSrvPuKButton');
+importSrvPuKButton.addEventListener('click', function() {
+	readServerPubKeyPkcs8();
 });
 
 

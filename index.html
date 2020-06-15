@@ -74,18 +74,33 @@
 	<br>
 
 	<table class="termstyle">
-	    <tr style="text-align:center;" ><td> YOUR PRIVATE KEY FILE <input id="importButton" type="button" class="termstyle_button" value="import" /></td><td> YOUR PUBLIC KEY FILE</td></tr>
-		  <tr>
-<td><textarea id="sk_file" class="termstyle" rows="15" cols="64" style="cursor:pointer;" title=" Your RSA private key file..."></textarea></td>
-	 	   	<td><textarea id="pk_file" class="termstyle" rows="15" cols="64" style="cursor:pointer;" title=" Your RSA public key file..."; readonly=true;></textarea></td>
-	 	  </tr>
+	    <tr style="text-align:center;" >
+	    	<td>
+	    		YOUR PRIVATE KEY (PKCS#1 FORMAT) <input id="importPrK1Button" type="button" class="termstyle_button" value="import" />
+	    	</td>
+	    	<td>
+	    		YOUR PUBLIC KEY (OPENSSH FORMAT)
+	    	</td>
+	    </tr>
+		<tr>
+			<td><textarea id="PrK1_txtarea" class="termstyle" rows="15" cols="64" style="cursor:pointer;" title="Your RSA private key file..."></textarea></td>
+	 	   	<td><textarea id="PuK_txtarea" class="termstyle" rows="15" cols="64" style="cursor:pointer;" title="Your RSA public key file..."; readonly=true;></textarea></td>
+	 	</tr>
+	    <tr style="text-align:center;" >
+	    	<td>
+	    		YOUR PRIVATE KEY (PKCS#8 FORMAT) <input id="importPrK8Button" type="button" class="termstyle_button" value="import" />
+	    	</td>
+	    </tr>
+		<tr>
+			<td><textarea id="PrK8_txtarea" class="termstyle" rows="15" cols="64" style="cursor:pointer;" title="Your RSA private key file..."></textarea></td>
+	 	</tr>
     </table>
 
     <br>
 
     <table class="termstyle">
-    	<tr style="text-align:center;" ><td> SERVER PUBLIC KEY FILE (PKCS#8) <input id="importButtonPub" type="button" class="termstyle_button" value="import" /></td></tr>
-		<tr><td><textarea id="pubkey_textarea" class="termstyle" rows="15" cols="64" style="cursor:pointer;" title=" Server RSA Public Key (PKCS#8)..."></textarea></td></tr>
+    	<tr style="text-align:center;" ><td> SERVER PUBLIC KEY (PKCS#8 FORMAT) <input id="importSrvPuKButton" type="button" class="termstyle_button" value="import" /></td></tr>
+		<tr><td><textarea id="srvrKey_txtarea" class="termstyle" rows="15" cols="64" style="cursor:pointer;" title=" Server RSA Public Key (PKCS#8)..."></textarea></td></tr>
     </table>
 
     <br>

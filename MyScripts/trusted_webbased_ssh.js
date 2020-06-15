@@ -26,17 +26,26 @@ var rsa = new RSAKey(); // rsa engine (object) for signing SSH SHA1 digest
 var keyvalidity=0; //key pair is ok?
 
 var timeout;
+var show_auth = false;
 
 var proxypath = "";
 
 var tt_sid = "";    // TT_SID produced by me
 var ssh_sid = "";   // SSH_SID received by Proxy
-var tt_aes_key;     // AES Key to be used with AES-GCM for encrypting Keystrokes and decrypting Server responses
 
-//PKCS#8 Server Public Key string, to be used to verify Digital Signature of Shared Secret sent by Server
+// AES-GCM CryptoKey for encrypting Keystrokes and decrypting Server responses
+var tt_aes_key = null;
+
+/*
+  PKCS#8 Server Public Key string
+  I do not create a CryptoKey variabile because I would need two of them:
+  - one to be used to encrypt AES-CBC key used to encrypt signature and PubKey to be sent to Server
+  - one to be used to verify Digital Signature of Shared Secret sent by Server
+*/
 var server_public_key = "";
 
-var show_auth = false;
+// Private CryptoKey for RSA-PSS signing JSON of SSH-SIG and PubKey
+var privCryptoKey = null;
 
 function str2ab(str) {
   const buf = new ArrayBuffer(str.length);
@@ -46,7 +55,6 @@ function str2ab(str) {
   }
   return buf;
 }
-
 function hexToBuf(hex){
   var tA = new Uint8Array(hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
   return tA//.buffer;
@@ -56,7 +64,6 @@ function bufToHex(byteArray) {
         return ('0' + (byte & 0xFF).toString(16)).slice(-2);
     }).join('');
 }
-
 function bufToBase64(buffer){
   let binary = '';
   let bytes = new Uint8Array(buffer);
@@ -66,7 +73,6 @@ function bufToBase64(buffer){
   }
   return window.btoa(binary);
 }
-
 function hexToBase64(hex){
   buffer = hexToBuf(hex) // Convert Hex String to BytesArray
   b64 = bufToBase64(ba) // Convert BytesArray to Base64 String
@@ -106,15 +112,16 @@ function reseed(event, count) {
       //alert(t.length);
       drawPB(count,t.length);
       if (t.length < count) { return; }
-      	drawPB(count,t.length);
+        drawPB(count,t.length);
         //$("progressbar1").style.visibility="hidden";
         //drawPB(100,0);
         MochiKit.Signal.disconnect(mouse_event);
         Math.seedrandom(t, true);        // Mix in any previous entropy.
-	keygeneration();
+        keygeneration();
     }
     var mouse_event = MochiKit.Signal.connect(document, event, w);
 }
+
 
 function entropy_collector(){ // Define a custom entropy collector
   resetmsg();
@@ -122,6 +129,7 @@ function entropy_collector(){ // Define a custom entropy collector
   $("progressbar1").style.visibility="visible";
   reseed('onmousemove', 6000); // Reseed after 6000 mouse moves (about a minute of user-interface event observations)
 }
+
 
 function keygeneration(){
   var start = new Date();
@@ -148,10 +156,10 @@ function keygeneration(){
 
   //encode private key
   var pem = sk2pemfileformat(n,e,d,p,q,exp1,exp2,coeff); //--rsa2pem.js--
-  $("sk_file").value = pem;
+  $("PrK1_txtarea").value = pem;
   //encode public key
   openssh_pk = pk2opensshfileformat(n,e); //--rsa2pem.js--
-  $("pk_file").value = openssh_pk;
+  $("PuK_txtarea").value = openssh_pk;
 
   $('usr').focus();//fix spacebar firefox problem
   var end = new Date();
@@ -164,24 +172,60 @@ function keygeneration(){
 * RSA KEY PAIR EXTRACTION
 * extracts an RSA key pair from a PEM (PKCS1) Private Key
 */
-function importsk(){
-  //extract and set private and public keys
-  rsa.setKeyFromPem($("sk_file").value.trim()); //--pem2rsa.js--
+function importPrK1(){
+  rsa.setKeyFromPem($("PrK1_txtarea").value.trim()); //--pem2rsa.js--
   var n = rsa.n.toString(16);
   var e = rsa.e.toString(16);
   //public key file encode
   openssh_pk = pk2opensshfileformat(n,e); //--rsa2pem.js--
-  $("pk_file").value = openssh_pk;
+  $("PuK_txtarea").value = openssh_pk;
   resetmsg();
   msg("key extracting...ok");
   //check key validity
   checkkeyvalidity();
-  $('usr').focus(); //fix spacebar firefox problem
+  $('usr').focus(); // fix spacebar firefox problem
+}
+
+
+function importPrK8(){
+  // read Private Key PKCS8 from corresponding TextArea
+  prkey8 = $("PrK8_txtarea").value.trim();
+
+  // fetch the part of the PEM string between header and footer
+  const pemHeader = "-----BEGIN PRIVATE KEY-----";
+  const pemFooter = "-----END PRIVATE KEY-----";
+  const pemContents = prkey8.substring(pemHeader.length, prkey8.length - pemFooter.length);
+  // base64 decode the string to get the binary data
+  const binaryDerString = window.atob(pemContents);
+  // convert from a binary string to an ArrayBuffer
+  const binaryDer = str2ab(binaryDerString);
+
+  // Importing PrivateKey for RSA-PSS Signing
+  window.crypto.subtle.importKey(
+      "pkcs8",
+      binaryDer,
+      {name:"RSA-PSS", hash:"SHA-256"},
+      false,
+      ["sign"],
+  )
+  .then(function(key){
+    msg("Private Key PKCS8 imported successfully");
+    privCryptoKey = key;  // Saving the CryptoKey in the global variable for future use
+  })
+  .catch(function(err){
+    alert("Error importing Private Key PKCS8: " + err);
+  });
+}
+
+function readServerPubKeyPkcs8(){
+  // Gets the PKCS#8 formatted Server Public Key from the corresponding TextArea in the page
+  server_public_key = $("srvrKey_txtarea").value.trim();
+  msg("Server public key read...");
 }
 
 
 /*
-* CHECK KEY PAIR VALIDITY
+* CHECK PKCS1 KEY PAIR VALIDITY
 */
 function checkkeyvalidity(){
   if (rsa.decrypt(rsa.encrypt("test")) == "test"){
@@ -217,12 +261,6 @@ function randomsid(){
   return s;
 }
 
-function getServerPubKeyPkcs8(){
-  // Gets the PKCS#1 formatted Server Public Key from the corresponding TextArea in the page
-  server_public_key = $("pubkey_textarea").value.trim();
-  msg("Server public key read...");
-}
-
 
 /*
 * SSH CONNECTION
@@ -231,13 +269,13 @@ function getServerPubKeyPkcs8(){
 */
 function ssh_connect() {
 
-  var kp = $('pk_file').value;  // My Public Key, composed from the inserted Private Key
+  var pubKey = $('PuK_txtarea').value;  // My Public Key, composed from the inserted Private Key
   var user = $('usr').value;
   var hostname = $('hn').value;
   var port = $('p').value;
   var proxy_ip = $('proxy_ip').value;
 
-  if(kp == "" || server_public_key=="" || user=="" || hostname=="" || port=="" || proxy_ip==""){
+  if(privCryptoKey == null || kp == "" || server_public_key=="" || user=="" || hostname=="" || port=="" || proxy_ip==""){
     alert("Please fill all the fields!");
   }
   else if(keyvalidity==0){
@@ -254,7 +292,7 @@ function ssh_connect() {
 
     show_auth = $('check_auth').checked;
 
-  	var qry = queryString({TT_SID:tt_sid, user:user, hostname:hostname, kp:kp, port:port});
+  	var qry = queryString({TT_SID:tt_sid, user:user, hostname:hostname, kp:pubKey, port:port});
     if (show_auth){
       alert("--SSH CONNECTION REQUEST--\n"+"TT_SID = "+tt_sid+"\n"+"USER = "+user+"\n"+"HOST = "+hostname+"\n"+"PORT = "+port+"\n"+"PUBLIC KEY = "+kp+"\n"); //DEBUG
     }
@@ -275,7 +313,8 @@ function handleServerError_Connect(err){
   alert(err.message + " (ssh connection error)" );
 }
 
-function handleServerResult_Connect(res) { //res.responseText contains the Digest to digitally sign
+// Here I should have received the SSH digest to digitally sign
+function handleServerResult_Connect(res) {
   var m;
   var type_digest;
   var digest;
@@ -288,15 +327,20 @@ function handleServerResult_Connect(res) { //res.responseText contains the Diges
   if (json.msg) m = json.msg;
   if(json.type_digest && json.digest){
     type_digest = json.type_digest;
-    digest = json.digest; // Digest, computed with SHA1, so 40 hex chars
+    digest = json.digest; // Digest, computed with SHA1
   }
   if(m=="digest" && digest && type_digest) {
     msg("Digest received");
-    hSig = rsa.signDigest(digest, type_digest); // Digital Signature (RSASSA-PKCS1-v1_5 of Digest), 512 hex chars (256 bytes)
+    hSig = rsa.signDigest(digest, type_digest); // Digital Signature (RSASSA-PKCS1-v1_5 of Digest)
     msg("Digital Signature computed")
-    //console.log("Digest Signature: " + hSig);
 
-    // Importing Server Public Key for encrypting Digital Signature with RSA-OAEP
+    /*
+      Here I have to create the SSH-SIG for SSH-AUTH, encrypt the JSON made by:
+        {"ssh-sig":"...","pubkey":"..."}
+      and finally sign the JSON
+    */
+
+    // creating Server Public CryptoKey
 
     // fetch the part of the PEM string between header and footer
     const pemHeader = "-----BEGIN PUBLIC KEY-----";
@@ -316,13 +360,22 @@ function handleServerResult_Connect(res) { //res.responseText contains the Diges
         ["encrypt"],
     )
     .then( function (serv_pubkey) { // serv_pubkey is the CryptoKey to be used for RSA-OAEP encryption
-        // Genereting AES Key for encrypting Digital Signature
-        crypto.subtle.generateKey({name:"AES-CBC",length:256},true,["encrypt"])
+        // Generating JSON string to be encrypted
+        var json_string_to_crypt = '{"ssh-sig":"' + hSig + '","pubkey":"' + $("PuK_txtarea").value.trim() + '"}'
+        // UTF-8 encoding of JSON string, to be used by the WebCrypto primitives
+        var jsonU8A = new TextEncoder().encode(json_string_to_crypt);
+
+        // Genereting AES Key for encrypting SSH-SIG and PubKey
+        crypto.subtle.generateKey(
+            {name:"AES-CBC",length:256},
+            true,
+            ["encrypt"]
+        )
         .then( function (aesCryptoKey) {
             // Encrypting Digital Signature with AES Key
             iv = window.crypto.getRandomValues(new Uint8Array(16)); // Uint8Array of 128 bit IV
-            window.crypto.subtle.encrypt( {name:"AES-CBC", iv}, aesCryptoKey, hexToBuf(hSig) )
-            .then( function (encSig) {
+            window.crypto.subtle.encrypt( {name:"AES-CBC", iv}, aesCryptoKey, jsonU8A )
+            .then( function (encJSON) {
                 // Encrypting AES Key with RSA-OAEP
                 window.crypto.subtle.exportKey('raw',aesCryptoKey)
                 .then( function(key_bytes){
@@ -330,11 +383,26 @@ function handleServerResult_Connect(res) { //res.responseText contains the Diges
                   window.crypto.subtle.encrypt({name: "RSA-OAEP"}, serv_pubkey, aesKey_bytes)
                   .then( function (encKey){
                       iv_hex = bufToHex(iv); // Hex of IV
-                      encSig_hex = bufToHex(new Uint8Array(encSig)); // Hex of Digital Signature encrypted with AES
+                      encJSON_hex = bufToHex(new Uint8Array(encJSON)); // Hex of JSON encrypted with AES
                       encKey_hex = bufToHex(new Uint8Array(encKey)); // Hex of Encrypted AES Key
-                      msg("Encryption of Digital Signature computed");
-                      msg("Sending Encr Sig to Proxy...");
-                      send_encr_digest_sig(iv_hex, encSig_hex, encKey_hex);
+                      msg("Encryption of Digital Signature and PubKey computed");
+
+                      // now I have to sign the JSON
+                      crypto.subtle.sign(
+                        {name:"RSA-PSS", saltLength:32},
+                        privCryptoKey,
+                        jsonU8A
+                      )
+                      .then(function(sig_of_JSON){
+                        var sig_of_JSON_hex = bufToHex(new Uint8Array(sig_of_JSON));
+
+                        // Now that I have everything, I can send it to Proxy
+                        send_encr_digest_sig(iv_hex, encJSON_hex, encKey_hex, sig_of_JSON_hex);
+                      })
+                      .catch(function(err){
+                        alert("Failed signature of JSON of SSH-SIG and PubKey: " + err);
+                      });
+
                   })
                   .catch(function(err){
                       alert("Failed encryption of AES Key with RSA-OAEP: " + err);
@@ -357,19 +425,20 @@ function handleServerResult_Connect(res) { //res.responseText contains the Diges
     });
   }
   else{
-      msg("ssh connection error ["+ m + "]");
+      msg("Received wrong params for digest: [" + m + "]");
   }
 }
 
-function send_encr_digest_sig(iv_hex,encSig_hex,encKey_hex){
-  var qry = queryString({'TT_SID':tt_sid, 'IV':iv_hex, 'EncSig':encSig_hex, 'EncKey':encKey_hex});
+function send_encr_digest_sig(iv_hex,encJSON_hex,encKey_hex,sig_of_JSON_hex){
+  var qry = queryString({'TT_SID':tt_sid, 'IV':iv_hex, 'EncJSON':encJSON_hex, 'EncKey':encKey_hex, 'JSONsig':sig_of_JSON_hex});
   //if (show_auth) alert("--SSH AUTHENTICATION REQUEST--\n"+"SID = " + tt_sid +"\n"+"DIGEST SIGNATURE = " + sig ); //DEBUG
 
-  var d = doXHR(proxypath+'encr_sig', { method:'POST',
-                         sendContent:qry,
-                         headers: {Accept: 'application/json'}
-                       }
-               );
+  var d = doXHR(proxypath+'encr_sig',
+                { method:'POST',
+                  sendContent:qry,
+                  headers: {Accept: 'application/json'}
+                  }
+          );
   d.addCallback(handleServerResult_Auth);//this callback fires when the XHR returns successful
   d.addErrback(handleServerError_Auth);//this callback fires when the XHR fails
 }
@@ -378,7 +447,8 @@ function handleServerError_Auth(err){
   alert(err.message + " (sending digest error)" );
 }
 
-function handleServerResult_Auth(res) {//res.responseText contains our result.
+// Here I should receive the result of SSH-AUTH from Proxy
+function handleServerResult_Auth(res) {
   var m;
   var json;
   if (show_auth) alert("--SSH AUTHENTICATION RESPONSE--\n"+res.responseText); //DEBUG
@@ -389,24 +459,25 @@ function handleServerResult_Auth(res) {//res.responseText contains our result.
 
   if(m == "AUTH_OK") {
     $("btnconnect").disabled="true";
-    msg("Server Authentication OK");
+    msg("SSH-AUTH success!");
     timeout = window.setTimeout(request_session_setup_data, 100);
   }
   else {
-    alert("Authentication failed!");
+    alert("SSH-AUTH failed!");
   }
   $('usr').focus();//fix spacebar firefox problem
 }
 
-//================= NEW CODE =================
+
 // Polling Proxy to get Shared Secret and Digital Signature
 function request_session_setup_data(){
   var qry = queryString({'tt_session_id':tt_sid, 'phase':'3'});
-  var d = doXHR(proxypath+'server_session_setup', { method:'POST',
-                         sendContent:qry,
-                         headers: {Accept: 'application/json'}
-                       }
-               );
+  var d = doXHR(proxypath+'server_session_setup',
+                { method:'POST',
+                  sendContent:qry,
+                  headers: {Accept: 'application/json'}
+                }
+          );
   d.addCallback(handleServerResult_sessionData);
   d.addErrback(handleServerError_sessionData);
 }
@@ -426,7 +497,7 @@ function handleServerResult_sessionData(res){
 
     // Decrypting Shared Secret with my Private Key (RSAES-PKCS1-v1_5 decryption)
     decrypt = new JSEncrypt();
-    decrypt.setPrivateKey($('sk_file').value);
+    decrypt.setPrivateKey($('PrK1_txtarea').value);
     shared_secret_plain = decrypt.decrypt(json.encrypted_data); // JSON string of Plaintext of Shared Secret
     plaintext_json = JSON.parse(shared_secret_plain);  // JSON object, for accessing fields of JSON Shared Secret
 
@@ -449,7 +520,7 @@ function handleServerResult_sessionData(res){
         binaryDer,
         {
           name: "RSA-PSS",
-          hash: "SHA-512",
+          hash: "SHA-256",
         },
         false,
         ["verify"],
@@ -481,7 +552,7 @@ function handleServerResult_sessionData(res){
                 // CryptoKey of AES key built, I can start the session
                 msg("TT_AES CryptoKey created")
                 tt_aes_key = key;
-                t = trustyterm.Terminal("term"); //--trustyterm.js--, parameter is actually useless now
+                t = trustyterm.Terminal("term"); //--trustyterm.js--
             })
             .catch(function(err){
                 alert("Failed to setup AES key!");
@@ -500,7 +571,7 @@ function handleServerResult_sessionData(res){
 
     })
     .catch(function(err){
-      alert("Server Public CryptoKey building failed! Insert a valid PKCS#8 Public Key...");
+      alert("Failed import of Server Public Key: " + err);
       console.log(err);
     });
 

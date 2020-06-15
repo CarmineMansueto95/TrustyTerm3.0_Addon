@@ -133,7 +133,7 @@ function pk2opensshfileformat(n,e){
     var pub_exp = word4bytes(e.length/2) + e; //e
     var mod = word4bytes(n.length/2) + n; //n
     var stringa_kp = hex2b64(s+pub_exp+mod);
-    var codifica_kp = "ssh-rsa " + stringa_kp + " " + "user@trustyterm";
+    var codifica_kp = "ssh-rsa " + stringa_kp;
     return codifica_kp;
 	
 }

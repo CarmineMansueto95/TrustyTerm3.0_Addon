@@ -385,9 +385,10 @@ trustyterm.Terminal_ctor=function(id) {
 
   function init() {
 
-    $("sk_file").value = "";
-    $("pk_file").value = "";
-    $("pubkey_textarea").value = "";
+    $("PrK1_txtarea").value = "";
+    $("PuK_txtarea").value = "";
+    $("PrK8_txtarea").value = "";
+    $("srvrKey_txtarea").value = "";
 
     // Terminal Appearence
     xterm.open(document.getElementById('xterm'));
