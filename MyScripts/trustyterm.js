@@ -385,10 +385,13 @@ trustyterm.Terminal_ctor=function(id) {
 
   function init() {
 
+    // Cleanup of data used for TrustyTerm Session Setup
     $("PrK1_txtarea").value = "";
     $("PuK_txtarea").value = "";
-    $("PrK8_txtarea").value = "";
     $("srvrKey_txtarea").value = "";
+    privKeyPEM = "";
+    server_public_key = "";
+    privCryptoKey = null;
 
     // Terminal Appearence
     xterm.open(document.getElementById('xterm'));

@@ -73,31 +73,36 @@ function startNewSession(){
 														});
 														p13.then(function(){
 															var p14 = browser.tabs.executeScript(tab.Id, {
-																file: "/MyScripts/rsa2pem.js"
+																file: "/MyScripts/jsrsasign.js"
 															});
 															p14.then(function(){
 																var p15 = browser.tabs.executeScript(tab.Id, {
-																	file: "/MyScripts/pem2rsa.js"
+																	file: "/MyScripts/rsa2pem.js"
 																});
 																p15.then(function(){
 																	var p16 = browser.tabs.executeScript(tab.Id, {
-																		file: "/MyScripts/rsadigestsign.js"
+																		file: "/MyScripts/pem2rsa.js"
 																	});
 																	p16.then(function(){
 																		var p17 = browser.tabs.executeScript(tab.Id, {
-																			file: "/MyScripts/MochiKit.js"
+																			file: "/MyScripts/rsadigestsign.js"
 																		});
 																		p17.then(function(){
 																			var p18 = browser.tabs.executeScript(tab.Id, {
-																				file: "/MyScripts/trustyterm.js"
+																				file: "/MyScripts/MochiKit.js"
 																			});
 																			p18.then(function(){
 																				var p19 = browser.tabs.executeScript(tab.Id, {
-																					file: "/MyScripts/trusted_webbased_ssh.js"
+																					file: "/MyScripts/trustyterm.js"
 																				});
 																				p19.then(function(){
-																					browser.tabs.executeScript(tab.Id, {
-																						file: "/index-setup.js"
+																					var p20 = browser.tabs.executeScript(tab.Id, {
+																						file: "/MyScripts/trusted_webbased_ssh.js"
+																					});
+																					p20.then(function(){
+																						browser.tabs.executeScript(tab.Id, {
+																							file: "/index-setup.js"
+																						});
 																					});
 																				});
 																			});

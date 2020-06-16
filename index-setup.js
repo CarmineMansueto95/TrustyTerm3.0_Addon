@@ -105,11 +105,6 @@ importPrK1Button.addEventListener('click', function() {
 	importPrK1();
 });
 
-var importPrK8Button = document.getElementById('importPrK8Button');
-importPrK8Button.addEventListener('click', function() {
-	importPrK8();
-});
-
 var importSrvPuKButton = document.getElementById('importSrvPuKButton');
 importSrvPuKButton.addEventListener('click', function() {
 	readServerPubKeyPkcs8();

@@ -3,22 +3,23 @@
 * AUTHOR: Mirko Di Silvio
 * DEPENDS ON:
 *  Tom Wu's (http://www-cs-students.stanford.edu/~tjw/jsbn/)
-*   jsbn.js - basic BigInteger implementation
-*  	jsbn2.js - the rest of the library, including most public BigInteger methods
-*  	rsa - implementation of RSA encryption, does not require jsbn2.js
-*  	rsa2 - rest of RSA algorithm, including decryption and keygen
-*  	base64 - Base64 encoding and decoding routines
+*      jsbn.js - basic BigInteger implementation
+*  	   jsbn2.js - the rest of the library, including most public BigInteger methods
+*  	   rsa - implementation of RSA encryption, does not require jsbn2.js
+*  	   rsa2 - rest of RSA algorithm, including decryption and keygen
+*  	   base64 - Base64 encoding and decoding routines
+*  Kenji Urushima's 
+*      jsrsasign.js
 *  Mirko Di Silvio's
-*  	rsa2pem.js - encode private key in PEM format and public key in openssh format
-*  	pem2rsa.js - RSAKey class extension to read PKCS#1 RSA private key PEM file
-*  	rsadigestsign.js - RSAKey class extension to sign a digest with RSA private key
-*  	trustyterm.js - client side terminal emulation
-*   tt_rng.js - Seeded RNG interface
+*  	   rsa2pem.js - encode private key in PEM format and public key in openssh format
+*  	   pem2rsa.js - RSAKey class extension to read PKCS#1 RSA private key PEM file
+*  	   rsadigestsign.js - RSAKey class extension to sign a digest with RSA private key
+*  	   trustyterm.js - client side terminal emulation
+*      tt_rng.js - Seeded RNG interface
 *  David Bau's (http://davidbau.com/archives/2010/01/30/random_seeds_coded_hints_and_quintillions.html)
-*  	seedrandom.js - seedable random number generator
+*  	   seedrandom.js - seedable random number generator
 *  Javascript framework
-* 	MochiKit.js - light-weight JavaScript library
-*
+* 	   MochiKit.js - light-weight JavaScript library
 */
 
 //GLOBALS
@@ -41,11 +42,16 @@ var tt_aes_key = null;
   I do not create a CryptoKey variabile because I would need two of them:
   - one to be used to encrypt AES-CBC key used to encrypt signature and PubKey to be sent to Server
   - one to be used to verify Digital Signature of Shared Secret sent by Server
+  In the solution with 2 Key-Pairs, the first case does not exist, so I would make this variable a CryptoKey
 */
 var server_public_key = "";
 
-// Private CryptoKey for RSA-PSS signing JSON of SSH-SIG and PubKey
+// Private CryptoKey for RSA-PSS signing JSON of SSH-SIG and PubKey (to be removed in the 2 Key-Pair solution)
 var privCryptoKey = null;
+
+/* If Private Key uploaded was encrypted, I use 'jsrsasign' library
+   to decrypt it and store it here in decrypted PEM PKCS#1 format */
+var privKeyPEM = "";
 
 function str2ab(str) {
   const buf = new ArrayBuffer(str.length);
@@ -173,28 +179,22 @@ function keygeneration(){
 * extracts an RSA key pair from a PEM (PKCS1) Private Key
 */
 function importPrK1(){
-  rsa.setKeyFromPem($("PrK1_txtarea").value.trim()); //--pem2rsa.js--
-  var n = rsa.n.toString(16);
-  var e = rsa.e.toString(16);
-  //public key file encode
-  openssh_pk = pk2opensshfileformat(n,e); //--rsa2pem.js--
-  $("PuK_txtarea").value = openssh_pk;
-  resetmsg();
-  msg("key extracting...ok");
-  //check key validity
-  checkkeyvalidity();
-  $('usr').focus(); // fix spacebar firefox problem
-}
+  // If Private Key is encrypted, I read from PrivKeyPass HTML input the passphrase to decrypt it
+  var passphrase = $("PrivKeyPass").value;
+  // Reading Private Key (if it is encrypted, pass the passphrase as second parameter)
+  var PrivKey = KEYUTIL.getKey($("PrK1_txtarea").value.trim(), passphrase);
+  // Decrypted Private Key in PKCS#1 format
+  privKeyPEM = KEYUTIL.getPEM(PrivKey, "PKCS1PRV"); //PKCS#1 of decrypted Private Key
 
+  // I also import the PKCS#8 formatted Private Key, to be used with WebCrypto
+  privKeyPEMPKCS8 = KEYUTIL.getPEM(PrivKey, "PKCS8PRV").trim();
 
-function importPrK8(){
-  // read Private Key PKCS8 from corresponding TextArea
-  prkey8 = $("PrK8_txtarea").value.trim();
+  alert(privKeyPEMPKCS8);
 
   // fetch the part of the PEM string between header and footer
   const pemHeader = "-----BEGIN PRIVATE KEY-----";
   const pemFooter = "-----END PRIVATE KEY-----";
-  const pemContents = prkey8.substring(pemHeader.length, prkey8.length - pemFooter.length);
+  const pemContents = privKeyPEMPKCS8.substring(pemHeader.length, privKeyPEMPKCS8.length - pemFooter.length);
   // base64 decode the string to get the binary data
   const binaryDerString = window.atob(pemContents);
   // convert from a binary string to an ArrayBuffer
@@ -215,6 +215,23 @@ function importPrK8(){
   .catch(function(err){
     alert("Error importing Private Key PKCS8: " + err);
   });
+
+  // Giving to RSA engine my Private Key
+  rsa.setKeyFromPem(privKeyPEM); //--pem2rsa.js--
+
+  // Reading Public Key parameters from Private Key
+  var n = PrivKey.n.toString(16);
+  var e = PrivKey.e.toString(16);
+  // Get Public Key in OpenSSH format
+  openssh_pk = pk2opensshfileformat(n,e); //--rsa2pem.js--
+  // Save OpenSSH formatted Public Key into correspondent TextArea
+  $("PuK_txtarea").value = openssh_pk;
+
+  resetmsg();
+  msg("User Key-Pair extracted");
+  //check key validity
+  checkkeyvalidity();
+  $('usr').focus(); // fix spacebar firefox problem
 }
 
 function readServerPubKeyPkcs8(){
@@ -225,15 +242,15 @@ function readServerPubKeyPkcs8(){
 
 
 /*
-* CHECK PKCS1 KEY PAIR VALIDITY
+* CHECK PKCS#1 KEY-PAIR VALIDITY
 */
 function checkkeyvalidity(){
   if (rsa.decrypt(rsa.encrypt("test")) == "test"){
-    msg("key pair validity...ok");
+    msg("Key-Pair validity...ok");
     keyvalidity = 1;
   }
   else {
-    msg("key pair validity...error");
+    msg("Key-Pair validity...error");
     keyvalidity = 0;
   }
 }
@@ -275,7 +292,10 @@ function ssh_connect() {
   var port = $('p').value;
   var proxy_ip = $('proxy_ip').value;
 
-  if(privCryptoKey == null || kp == "" || server_public_key=="" || user=="" || hostname=="" || port=="" || proxy_ip==""){
+  // In the 2 Key-Pairs solution it would be:
+    //if(privKeyPEM == "" || server_public_key==null || user=="" || hostname=="" || port=="" || proxy_ip=="")
+    
+  if(privCryptoKey == null || server_public_key=="" || user=="" || hostname=="" || port=="" || proxy_ip==""){
     alert("Please fill all the fields!");
   }
   else if(keyvalidity==0){
@@ -361,7 +381,7 @@ function handleServerResult_Connect(res) {
     )
     .then( function (serv_pubkey) { // serv_pubkey is the CryptoKey to be used for RSA-OAEP encryption
         // Generating JSON string to be encrypted
-        var json_string_to_crypt = '{"ssh-sig":"' + hSig + '","pubkey":"' + $("PuK_txtarea").value.trim() + '"}'
+        var json_string_to_crypt = '{"username":"' + $('usr').value + '","pubkey":"' + $("PuK_txtarea").value.trim() + '","ssh-sig":"' + hSig + '"}'
         // UTF-8 encoding of JSON string, to be used by the WebCrypto primitives
         var jsonU8A = new TextEncoder().encode(json_string_to_crypt);
 
@@ -497,7 +517,7 @@ function handleServerResult_sessionData(res){
 
     // Decrypting Shared Secret with my Private Key (RSAES-PKCS1-v1_5 decryption)
     decrypt = new JSEncrypt();
-    decrypt.setPrivateKey($('PrK1_txtarea').value);
+    decrypt.setPrivateKey(privKeyPEM);
     shared_secret_plain = decrypt.decrypt(json.encrypted_data); // JSON string of Plaintext of Shared Secret
     plaintext_json = JSON.parse(shared_secret_plain);  // JSON object, for accessing fields of JSON Shared Secret
 

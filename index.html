@@ -76,7 +76,7 @@
 	<table class="termstyle">
 	    <tr style="text-align:center;" >
 	    	<td>
-	    		YOUR PRIVATE KEY (PKCS#1 FORMAT) <input id="importPrK1Button" type="button" class="termstyle_button" value="import" />
+	    		YOUR PRIVATE KEY (PKCS#1 FORMAT)
 	    	</td>
 	    	<td>
 	    		YOUR PUBLIC KEY (OPENSSH FORMAT)
@@ -86,14 +86,10 @@
 			<td><textarea id="PrK1_txtarea" class="termstyle" rows="15" cols="64" style="cursor:pointer;" title="Your RSA private key file..."></textarea></td>
 	 	   	<td><textarea id="PuK_txtarea" class="termstyle" rows="15" cols="64" style="cursor:pointer;" title="Your RSA public key file..."; readonly=true;></textarea></td>
 	 	</tr>
-	    <tr style="text-align:center;" >
-	    	<td>
-	    		YOUR PRIVATE KEY (PKCS#8 FORMAT) <input id="importPrK8Button" type="button" class="termstyle_button" value="import" />
-	    	</td>
-	    </tr>
 		<tr>
-			<td><textarea id="PrK8_txtarea" class="termstyle" rows="15" cols="64" style="cursor:pointer;" title="Your RSA private key file..."></textarea></td>
-	 	</tr>
+	    	<td>Private Key passphrase <input class = "termstyle" type="password" id="PrivKeyPass">
+	    	<input id="importPrK1Button" type="button" class="termstyle_button" value="import"/></td>
+	    </tr>
     </table>
 
     <br>
