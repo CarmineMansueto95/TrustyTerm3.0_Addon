@@ -46,8 +46,11 @@ var tt_aes_key = null;
 */
 var server_public_key = "";
 
-// Private CryptoKey for RSA-PSS signing JSON of SSH-SIG and PubKey (to be removed in the 2 Key-Pair solution)
-var privCryptoKey = null;
+// Private CryptoKey for RSA-PSS signing JSON of username, PubKey and SSH-SIG
+var privSigningCryptoKey = null;
+
+// Private CryptoKey for RSA-OAEP decrypting of Shared Secret (AES-GCM Key)
+var privDecryptingCryptoKey = null;
 
 /* If Private Key uploaded was encrypted, I use 'jsrsasign' library
    to decrypt it and store it here in decrypted PEM PKCS#1 format */
@@ -184,12 +187,12 @@ function importPrK1(){
   // Reading Private Key (if it is encrypted, pass the passphrase as second parameter)
   var PrivKey = KEYUTIL.getKey($("PrK1_txtarea").value.trim(), passphrase);
   // Decrypted Private Key in PKCS#1 format
-  privKeyPEM = KEYUTIL.getPEM(PrivKey, "PKCS1PRV"); //PKCS#1 of decrypted Private Key
+  privKeyPEM = KEYUTIL.getPEM(PrivKey, "PKCS1PRV");
 
   // I also import the PKCS#8 formatted Private Key, to be used with WebCrypto
   privKeyPEMPKCS8 = KEYUTIL.getPEM(PrivKey, "PKCS8PRV").trim();
 
-  alert(privKeyPEMPKCS8);
+  // building Private CryptoKey for RSA-PSS Signing
 
   // fetch the part of the PEM string between header and footer
   const pemHeader = "-----BEGIN PRIVATE KEY-----";
@@ -206,14 +209,31 @@ function importPrK1(){
       binaryDer,
       {name:"RSA-PSS", hash:"SHA-256"},
       false,
-      ["sign"],
+      ["sign"]
   )
   .then(function(key){
-    msg("Private Key PKCS8 imported successfully");
-    privCryptoKey = key;  // Saving the CryptoKey in the global variable for future use
+    msg("Private Key for Signing imported successfully");
+    privSigningCryptoKey = key;  // Saving the CryptoKey in the global variable for future use
   })
   .catch(function(err){
-    alert("Error importing Private Key PKCS8: " + err);
+    alert("Error importing Private Key for Signing: " + err);
+  });
+
+  // building Private CryptoKey for RSA-OAEP Decryption
+
+  window.crypto.subtle.importKey(
+    "pkcs8",
+    binaryDer,
+    {name:"RSA-OAEP", hash:"SHA-256"},
+    false,
+    ["decrypt"]
+  )
+  .then(function(key){
+    msg("Private Key for Decrypting imported successfully");
+    privDecryptingCryptoKey = key;
+  })
+  .catch(function(err){
+    alert("Error importing Private Key for Decrypting: " + err);
   });
 
   // Giving to RSA engine my Private Key
@@ -295,7 +315,7 @@ function ssh_connect() {
   // In the 2 Key-Pairs solution it would be:
     //if(privKeyPEM == "" || server_public_key==null || user=="" || hostname=="" || port=="" || proxy_ip=="")
     
-  if(privCryptoKey == null || server_public_key=="" || user=="" || hostname=="" || port=="" || proxy_ip==""){
+  if(privSigningCryptoKey == null || server_public_key=="" || user=="" || hostname=="" || port=="" || proxy_ip==""){
     alert("Please fill all the fields!");
   }
   else if(keyvalidity==0){
@@ -410,7 +430,7 @@ function handleServerResult_Connect(res) {
                       // now I have to sign the JSON
                       crypto.subtle.sign(
                         {name:"RSA-PSS", saltLength:32},
-                        privCryptoKey,
+                        privSigningCryptoKey,
                         jsonU8A
                       )
                       .then(function(sig_of_JSON){
@@ -516,83 +536,94 @@ function handleServerResult_sessionData(res){
     // The response should contain the Encrypted Shared Secret and the Signature
 
     // Decrypting Shared Secret with my Private Key (RSAES-PKCS1-v1_5 decryption)
-    decrypt = new JSEncrypt();
+    /*decrypt = new JSEncrypt();
     decrypt.setPrivateKey(privKeyPEM);
     shared_secret_plain = decrypt.decrypt(json.encrypted_data); // JSON string of Plaintext of Shared Secret
-    plaintext_json = JSON.parse(shared_secret_plain);  // JSON object, for accessing fields of JSON Shared Secret
+    plaintext_json = JSON.parse(shared_secret_plain);  // JSON object, for accessing fields of JSON Shared Secret*/
 
-    signat_bytes = Uint8Array.from(atob(json.signat), c => c.charCodeAt(0));
-    shared_secret_bytes = new TextEncoder("utf-8").encode(shared_secret_plain);
-
-    // Importing Server Public Key
-
-    // fetch the part of the PEM string between header and footer
-    const pemHeader = "-----BEGIN PUBLIC KEY-----";
-    const pemFooter = "-----END PUBLIC KEY-----";
-    const pemContents = server_public_key.substring(pemHeader.length, server_public_key.length - pemFooter.length);
-    // base64 decode the string to get the binary data
-    const binaryDerString = window.atob(pemContents);
-    // convert from a binary string to an ArrayBuffer
-    const binaryDer = str2ab(binaryDerString);
-
-    window.crypto.subtle.importKey(
-        "spki",
-        binaryDer,
-        {
-          name: "RSA-PSS",
-          hash: "SHA-256",
-        },
-        false,
-        ["verify"],
+    // Decrypting Shared Secret with my Private Key (RSA-OAEP decryption)
+    json_shared_secret_cipher_bytes = Uint8Array.from(atob(json.encrypted_data), c => c.charCodeAt(0));
+    window.crypto.subtle.decrypt(
+      {name:"RSA-OAEP"},
+      privDecryptingCryptoKey,
+      json_shared_secret_cipher_bytes
     )
-    .then( function (serv_pubkey) {
-        // Server Public Key imported, going to verify Signature
-        msg("Server Public CryptoKey created");
-        window.crypto.subtle.verify(
-            {name: "RSA-PSS", saltLength: 32},
-            serv_pubkey,
-            signat_bytes,
-            shared_secret_bytes
-        )
-        .then( function (result) {
-          if(result == true){
-            // Digital Signature is valid, I can build CryptoKey of the AES key received
-            msg("Digital signature of Shared Secret is valid, AES-GCM key received is good :)");
+    .then(function(shared_secret_bytes){
 
-            // Building CryptoKey object from AES hex key received
-            var key_buf = hexToBuf(plaintext_json.tt_aes_key);
-            window.crypto.subtle.importKey(
-                "raw",
-                key_buf,
-                {name: "AES-GCM"},
-                false,
-                ['encrypt','decrypt']
-            )
-            .then(function(key){
-                // CryptoKey of AES key built, I can start the session
-                msg("TT_AES CryptoKey created")
-                tt_aes_key = key;
-                t = trustyterm.Terminal("term"); //--trustyterm.js--
-            })
-            .catch(function(err){
-                alert("Failed to setup AES key!");
-                console.error(err);
-            });
+      json_shared_secret_string = new TextDecoder("utf-8").decode(shared_secret_bytes);
+      json_shared_secret = JSON.parse(json_shared_secret_string);
+      signat_bytes = Uint8Array.from(atob(json.signat), c => c.charCodeAt(0));
 
-          }
-          else{
-            alert("Digital signature of Shared Secret is not valid :(");
-          }
-        })
-        .catch(function(err){
-          alert("Something went wrong in the Digital Signature verification step!");
-          console.log(err);
-        });
+      // Importing Server Public Key
 
+      // fetch the part of the PEM string between header and footer
+      const pemHeader = "-----BEGIN PUBLIC KEY-----";
+      const pemFooter = "-----END PUBLIC KEY-----";
+      const pemContents = server_public_key.substring(pemHeader.length, server_public_key.length - pemFooter.length);
+      // base64 decode the string to get the binary data
+      const binaryDerString = window.atob(pemContents);
+      // convert from a binary string to an ArrayBuffer
+      const binaryDer = str2ab(binaryDerString);
+
+      window.crypto.subtle.importKey(
+          "spki",
+          binaryDer,
+          {
+            name: "RSA-PSS",
+            hash: "SHA-256",
+          },
+          false,
+          ["verify"],
+      )
+      .then( function (serv_pubkey) {
+          // Server Public Key imported, going to verify Signature
+          msg("Server Public CryptoKey created");
+          window.crypto.subtle.verify(
+              {name: "RSA-PSS", saltLength: 32},
+              serv_pubkey,
+              signat_bytes,
+              shared_secret_bytes
+          )
+          .then( function (result) {
+            if(result == true){
+              // Digital Signature is valid, I can build CryptoKey of the AES key received
+              msg("Digital signature of Shared Secret is valid, AES-GCM key received is good :)");
+
+              // Building CryptoKey object from AES hex key received
+              var key_buf = hexToBuf(json_shared_secret.tt_aes_key);
+              window.crypto.subtle.importKey(
+                  "raw",
+                  key_buf,
+                  {name: "AES-GCM"},
+                  false,
+                  ['encrypt','decrypt']
+              )
+              .then(function(key){
+                  // CryptoKey of AES key built, I can start the session
+                  msg("TT_AES CryptoKey created")
+                  tt_aes_key = key;
+                  t = trustyterm.Terminal("term"); //--trustyterm.js--
+              })
+              .catch(function(err){
+                  alert("Failed to setup AES key!");
+                  console.error(err);
+              });
+
+            }
+            else{
+              alert("Digital Signature of Shared Secret is not valid!");
+            }
+          })
+          .catch(function(err){
+            alert("Something went wrong in Shared Secret Signature verification: " + err);
+          });
+      })
+      .catch(function(err){
+        alert("Failed import of Server Public Key: " + err);
+      });
     })
     .catch(function(err){
-      alert("Failed import of Server Public Key: " + err);
-      console.log(err);
+      alert("Failed decryption of Shared Secret: " + err);
     });
 
   }
