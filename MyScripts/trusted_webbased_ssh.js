@@ -182,17 +182,11 @@ function keygeneration(){
 * extracts an RSA key pair from a PEM (PKCS1) Private Key
 */
 function importPrK1(){
-  // If Private Key is encrypted, I read from PrivKeyPass HTML input the passphrase to decrypt it
   var passphrase = $("PrivKeyPass").value;
-  // Reading Private Key (if it is encrypted, pass the passphrase as second parameter)
   var PrivKey = KEYUTIL.getKey($("PrK1_txtarea").value.trim(), passphrase);
-  // Decrypted Private Key in PKCS#1 format
   privKeyPEM = KEYUTIL.getPEM(PrivKey, "PKCS1PRV");
 
-  // I also import the PKCS#8 formatted Private Key, to be used with WebCrypto
   privKeyPEMPKCS8 = KEYUTIL.getPEM(PrivKey, "PKCS8PRV").trim();
-
-  // building Private CryptoKey for RSA-PSS Signing
 
   // fetch the part of the PEM string between header and footer
   const pemHeader = "-----BEGIN PRIVATE KEY-----";
@@ -204,37 +198,20 @@ function importPrK1(){
   const binaryDer = str2ab(binaryDerString);
 
   // Importing PrivateKey for RSA-PSS Signing
-  window.crypto.subtle.importKey(
-      "pkcs8",
-      binaryDer,
-      {name:"RSA-PSS", hash:"SHA-256"},
-      false,
-      ["sign"]
-  )
+  window.crypto.subtle.importKey("pkcs8",binaryDer,{name:"RSA-PSS", hash:"SHA-256"},false,["sign"])
   .then(function(key){
     msg("Private Key for Signing imported successfully");
     privSigningCryptoKey = key;  // Saving the CryptoKey in the global variable for future use
   })
-  .catch(function(err){
-    alert("Error importing Private Key for Signing: " + err);
-  });
+  .catch(function(err){ alert("Error importing Private Key for Signing: " + err); });
 
   // building Private CryptoKey for RSA-OAEP Decryption
-
-  window.crypto.subtle.importKey(
-    "pkcs8",
-    binaryDer,
-    {name:"RSA-OAEP", hash:"SHA-256"},
-    false,
-    ["decrypt"]
-  )
+  window.crypto.subtle.importKey("pkcs8", binaryDer, {name:"RSA-OAEP", hash:"SHA-256"}, false, ["decrypt"])
   .then(function(key){
     msg("Private Key for Decrypting imported successfully");
     privDecryptingCryptoKey = key;
   })
-  .catch(function(err){
-    alert("Error importing Private Key for Decrypting: " + err);
-  });
+  .catch(function(err){ alert("Error importing Private Key for Decrypting: " + err); });
 
   // Giving to RSA engine my Private Key
   rsa.setKeyFromPem(privKeyPEM); //--pem2rsa.js--
