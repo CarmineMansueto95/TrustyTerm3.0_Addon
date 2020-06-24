@@ -326,11 +326,8 @@ function handleServerError_Connect(err){
 
 // Here I should have received the SSH digest to digitally sign
 function handleServerResult_Connect(res) {
-  var m;
-  var type_digest;
-  var digest;
-  var hSig;
-  var json;
+  
+  var m, type_digest, digest, hSig, json;
 
   if (show_auth) alert("--SSH CONNECTION RESPONSE--\n"+res.responseText); //DEBUG
   //json = evalJSONRequest(res);
@@ -345,14 +342,11 @@ function handleServerResult_Connect(res) {
     hSig = rsa.signDigest(digest, type_digest); // Digital Signature (RSASSA-PKCS1-v1_5 of Digest)
     msg("Digital Signature computed")
 
-    /*
-      Here I have to create the SSH-SIG for SSH-AUTH, encrypt the JSON made by:
-        {"ssh-sig":"...","pubkey":"..."}
-      and finally sign the JSON
-    */
+    /* Here I have to create the SSH-SIG for SSH-AUTH, encrypt the JSON made by:
+          {"ssh-sig":"...","pubkey":"..."}
+       and finally sign the JSON */
 
     // creating Server Public CryptoKey
-
     // fetch the part of the PEM string between header and footer
     const pemHeader = "-----BEGIN PUBLIC KEY-----";
     const pemFooter = "-----END PUBLIC KEY-----";
@@ -363,25 +357,14 @@ function handleServerResult_Connect(res) {
     const binaryDer = str2ab(binaryDerString);
 
     // Importing Server Public Key for RSA-OAEP Encryption
-    window.crypto.subtle.importKey(
-        "spki",
-        binaryDer,
-        {name: "RSA-OAEP", hash: "SHA-256"},
-        false,
-        ["encrypt"],
-    )
+    window.crypto.subtle.importKey("spki", binaryDer, {name: "RSA-OAEP", hash: "SHA-256"}, false, ["encrypt"])
     .then( function (serv_pubkey) { // serv_pubkey is the CryptoKey to be used for RSA-OAEP encryption
-        // Generating JSON string to be encrypted
-        var json_string_to_crypt = '{"username":"' + $('usr').value + '","pubkey":"' + $("PuK_txtarea").value.trim() + '","ssh-sig":"' + hSig + '"}'
+        var json_string_to_crypt = '{"username":"' + $('usr').value + '","pubkey":"' + $("PuK_txtarea").value.trim() + '","ssh-sig":"' + hSig + '"}';
         // UTF-8 encoding of JSON string, to be used by the WebCrypto primitives
         var jsonU8A = new TextEncoder().encode(json_string_to_crypt);
 
         // Genereting AES Key for encrypting SSH-SIG and PubKey
-        crypto.subtle.generateKey(
-            {name:"AES-CBC",length:256},
-            true,
-            ["encrypt"]
-        )
+        crypto.subtle.generateKey({name:"AES-CBC",length:256}, true, ["encrypt"])
         .then( function (aesCryptoKey) {
             // Encrypting Digital Signature with AES Key
             iv = window.crypto.getRandomValues(new Uint8Array(16)); // Uint8Array of 128 bit IV
@@ -399,16 +382,13 @@ function handleServerResult_Connect(res) {
                       msg("Encryption of Digital Signature and PubKey computed");
 
                       // now I have to sign the JSON
-                      crypto.subtle.sign(
-                        {name:"RSA-PSS", saltLength:32},
-                        privSigningCryptoKey,
-                        jsonU8A
-                      )
+                      crypto.subtle.sign({name:"RSA-PSS", saltLength:32}, privSigningCryptoKey, jsonU8A)
                       .then(function(sig_of_JSON){
+                        
                         var sig_of_JSON_hex = bufToHex(new Uint8Array(sig_of_JSON));
-
                         // Now that I have everything, I can send it to Proxy
                         send_encr_digest_sig(iv_hex, encJSON_hex, encKey_hex, sig_of_JSON_hex);
+                      
                       })
                       .catch(function(err){
                         alert("Failed signature of JSON of SSH-SIG and PubKey: " + err);
