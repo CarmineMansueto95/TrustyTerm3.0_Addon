@@ -326,7 +326,7 @@ function handleServerError_Connect(err){
 
 // Here I should have received the SSH digest to digitally sign
 function handleServerResult_Connect(res) {
-  
+
   var m, type_digest, digest, hSig, json;
 
   if (show_auth) alert("--SSH CONNECTION RESPONSE--\n"+res.responseText); //DEBUG
@@ -341,10 +341,6 @@ function handleServerResult_Connect(res) {
     msg("Digest received");
     hSig = rsa.signDigest(digest, type_digest); // Digital Signature (RSASSA-PKCS1-v1_5 of Digest)
     msg("Digital Signature computed")
-
-    /* Here I have to create the SSH-SIG for SSH-AUTH, encrypt the JSON made by:
-          {"ssh-sig":"...","pubkey":"..."}
-       and finally sign the JSON */
 
     // creating Server Public CryptoKey
     // fetch the part of the PEM string between header and footer
