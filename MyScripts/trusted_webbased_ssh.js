@@ -283,35 +283,29 @@ function randomsid(){
 */
 function ssh_connect() {
 
-  var pubKey = $('PuK_txtarea').value;  // My Public Key, composed from the inserted Private Key
+  var pubKey = $('PuK_txtarea').value;
   var user = $('usr').value;
   var hostname = $('hn').value;
   var port = $('p').value;
   var proxy_ip = $('proxy_ip').value;
 
-  // In the 2 Key-Pairs solution it would be:
-    //if(privKeyPEM == "" || server_public_key==null || user=="" || hostname=="" || port=="" || proxy_ip=="")
-    
-  if(privSigningCryptoKey == null || server_public_key=="" || user=="" || hostname=="" || port=="" || proxy_ip==""){
+  if(privSigningCryptoKey == null || server_public_key=="" || user=="" || 
+     hostname=="" || port=="" || proxy_ip=="")
     alert("Please fill all the fields!");
-  }
-  else if(keyvalidity==0){
+  else if(keyvalidity==0)
     alert("Invalid Public/Private key pair!");
-  }
   else{
-
     // Getting Proxy IP from the corresponding text field in the HTML and updating the Proxy Path global var
     proxypath = "https://" + $('proxy_ip').value + "/trustyterm/";
 
-    // Generating the random TrustyTerm Session ID
-    tt_sid = randomsid();
+    tt_sid = randomsid(); // Generating the random TrustyTerm Session ID
     msg("TT_SID generated");
-
     show_auth = $('check_auth').checked;
 
   	var qry = queryString({TT_SID:tt_sid, user:user, hostname:hostname, kp:pubKey, port:port});
     if (show_auth){
-      alert("--SSH CONNECTION REQUEST--\n"+"TT_SID = "+tt_sid+"\n"+"USER = "+user+"\n"+"HOST = "+hostname+"\n"+"PORT = "+port+"\n"+"PUBLIC KEY = "+kp+"\n"); //DEBUG
+      alert("--SSH CONNECTION REQUEST--\n"+"TT_SID = "+tt_sid+"\n"+"USER = "+user+"\n"+
+            "HOST = "+hostname+"\n"+"PORT = "+port+"\n"+"PUBLIC KEY = "+kp+"\n"); //DEBUG
     }
 
     var d = doXHR(proxypath+'info',
