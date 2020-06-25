@@ -458,7 +458,7 @@ function handleServerResult_Auth(res) {
 
 // Polling Proxy to get Shared Secret and Digital Signature
 function request_session_setup_data(){
-  var qry = queryString({'tt_session_id':tt_sid, 'phase':'3'});
+  var qry = queryString({'tt_session_id':tt_sid, 'phase':'2'});
   var d = doXHR(proxypath+'server_session_setup',
                 { method:'POST',
                   sendContent:qry,
